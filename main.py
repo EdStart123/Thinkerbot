@@ -17,7 +17,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # OpenAI API Key
-openai.api_key = "your_openai_api_key_here"
+openai.api_key = "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"
 
 # Data models
 class LearningLog(Base):
@@ -52,7 +52,7 @@ def create_log(log: LogEntry):
 from openai import OpenAI
 import time
 
-client = OpenAI(api_key="your_openai_api_key_here")
+client = OpenAI(api_key="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")
 
 @app.get("/summary/{fellow_name}")
 def get_summary(fellow_name: str):

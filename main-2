@@ -1,0 +1,70 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from openai import OpenAI
+import time
+
+client = OpenAI(api_key="your_openai_api_key_here")
+app = FastAPI()
+
+# In-memory thread tracker (swap with Redis/Firebase for persistence)
+fellow_threads = {}
+
+class LogEntry(BaseModel):
+    fellow_name: str
+    entry: str
+
+@app.post("/log")
+def create_log(log: LogEntry):
+    fellow = log.fellow_name
+    entry = log.entry
+
+    # Use or create a persistent thread per fellow
+    if fellow not in fellow_threads:
+        thread = client.beta.threads.create()
+        fellow_threads[fellow] = thread.id
+    else:
+        thread_id = fellow_threads[fellow]
+
+    thread_id = fellow_threads[fellow]
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=f"{fellow}: {entry}"
+    )
+
+    return {"status": "success", "thread_id": thread_id}
+
+@app.get("/summary/{fellow_name}")
+def get_summary(fellow_name: str):
+    thread_id = fellow_threads.get(fellow_name)
+    if not thread_id:
+        raise HTTPException(status_code=404, detail="No thread found for this fellow")
+
+    assistant_id = "asst_your_custom_id_here"  # replace with your actual assistant ID
+
+    run = client.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=assistant_id,
+    )
+
+    while True:
+        run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+        if run_status.status == "completed":
+            break
+        elif run_status.status == "failed":
+            raise Exception("Assistant run failed")
+        time.sleep(1)
+
+    messages = client.beta.threads.messages.list(thread_id=thread_id)
+    assistant_message = next(
+        (msg for msg in messages.data if msg.role == "assistant"), None
+    )
+
+    if assistant_message:
+        return {"summary": assistant_message.content[0].text.value}
+    else:
+        raise HTTPException(status_code=500, detail="No assistant response found")
+
+@app.get("/")
+def health():
+    return {"status": "Thinkering Assistant is live!"}

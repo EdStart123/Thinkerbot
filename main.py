@@ -49,6 +49,11 @@ def create_log(log: LogEntry):
     return {"status": "success", "log_id": new_log.id}
 
 # Route to generate AI summary
+from openai import OpenAI
+import time
+
+client = OpenAI(api_key="your_openai_api_key_here")
+
 @app.get("/summary/{fellow_name}")
 def get_summary(fellow_name: str):
     db = SessionLocal()
@@ -56,16 +61,42 @@ def get_summary(fellow_name: str):
     db.close()
     if not logs:
         raise HTTPException(status_code=404, detail="No logs found for this fellow")
+
     combined_entries = "\n".join([log.entry for log in logs])
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are a learning coach summarizing fellowship progress."},
-            {"role": "user", "content": f"Summarize the following learning reflections:\n{combined_entries}"}
-        ]
+    assistant_id = "asst_abc123..."  # ⬅️ Replace this with your actual Assistant ID
+
+    thread = client.beta.threads.create()
+
+    client.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=f"Summarize the following learning reflections:\n{combined_entries}"
     )
-    return {"summary": response.choices[0].message['content']}
+
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id,
+        assistant_id=assistant_id,
+    )
+
+    while True:
+        run_status = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+        if run_status.status == "completed":
+            break
+        elif run_status.status == "failed":
+            raise Exception("Assistant run failed")
+        time.sleep(1)
+
+    messages = client.beta.threads.messages.list(thread_id=thread.id)
+    assistant_message = next(
+        (msg for msg in messages.data if msg.role == "assistant"), None
+    )
+
+    if assistant_message:
+        return {"summary": assistant_message.content[0].text.value}
+    else:
+        raise HTTPException(status_code=500, detail="No assistant response found")
+
 
 # Optional: route to return learning timeline
 @app.get("/timeline/{fellow_name}")

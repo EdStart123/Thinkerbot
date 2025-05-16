@@ -64,7 +64,7 @@ def get_summary(fellow_name: str):
 
     combined_entries = "\n".join([log.entry for log in logs])
 
-    assistant_id = "asst_abc123..."  # ⬅️ Replace this with your actual Assistant ID
+    assistant_id = "asst_hjH3bOhn4O6hokQd5AXOOuWN"  # ⬅️ Replace this with your actual Assistant ID
 
     thread = client.beta.threads.create()
 
